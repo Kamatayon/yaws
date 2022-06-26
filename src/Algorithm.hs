@@ -12,26 +12,14 @@ getImage settings = do
     let d = sDimensions settings
     let xinerama = sXinerama settings
     d <- getDimensions d xinerama
-    images <- case sSource settings of
-      W wall -> liftIO $ WH.getPhotos wall d
-      R red -> liftIO $ R.getImages red d
+    let source = sSource settings
+    images <- getImages source d
     selectRandomImage images
     where
-      -- selectRandomImage :: [Image] -> YawsIO Image
+      getImages (W wall) dimensions = liftIO $ WH.getPhotos wall dimensions
+      getImages (R reddit) dimensions = liftIO $ R.getImages reddit dimensions
       selectRandomImage [] = throwE NoImages
       selectRandomImage imgs = do
         stdGen <- initStdGen
         let (i, _) = uniformR (0, length imgs) stdGen 
         pure $ imgs !! i        
-
-
--- algorithm :: Settings -> IO ()
--- algorithm = do
-    
--- algorithm :: Settings -> IO ()
--- algorithm = do
---     photo <- runExceptT $ getPhoto config
---     case photo of      
---       Left ce -> print ce
---       Right ph -> saveImage $ source config $  photo
---     pure ()
