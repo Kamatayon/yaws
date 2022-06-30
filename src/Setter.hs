@@ -1,52 +1,55 @@
 {-# LANGUAGE OverloadedStrings #-}
+
 module Setter where
-import System.Directory (getXdgDirectory, XdgDirectory (XdgData), createDirectoryIfMissing)
+
 -- import Types (Photo (photoUrl, photoId), SourceOptions (W, R))
-import System.FilePath
-import qualified Data.Text as T
-import qualified Data.ByteString as BS
-import Network.HTTP.Simple (httpBS, parseRequest, getResponseBody)
+
 -- import Data.Text (Text)
 import Data.Aeson.Types (parse)
+import qualified Data.ByteString as BS
+import qualified Data.Text as T
+import Network.HTTP.Simple (getResponseBody, httpBS, parseRequest)
+import System.Directory (XdgDirectory (XdgData), createDirectoryIfMissing, getXdgDirectory)
+import System.FilePath
 import System.Process (readProcess)
-import Types (Source(..), Image(..))
+import Types (Image (..), Reddit (..), Source (..))
+
 -- import Data.List.Split
 
 getRootDir :: IO FilePath
 getRootDir = getXdgDirectory XdgData "yaws"
 
 -- getPhotoPath :: Photo -> IO FilePath
+sourceDir :: Source -> FilePath -> FilePath
+sourceDir src rootPath =
+  let suff (R r) = sourceDirName src </> redditSubreddit r
+      suff s = sourceDirName s
+   in rootPath </> suff src
 
-getSourceDirName :: Source -> FilePath
-getSourceDirName a = case a of
+sourceDirName :: Source -> FilePath
+sourceDirName a = case a of
   W wo -> "wallhaven"
   R ro -> "reddit"
 
--- getImageFormat :: String -> String 
--- getImageFormat = last . splitOn "." 
-    
-
-
-saveImage :: Source -> Image -> IO FilePath 
-saveImage source photo= do
-    rootDir <- getRootDir
-    let sourceDirName = getSourceDirName source
-    let sourceDirectory = rootDir </> sourceDirName
-    createDirectoryIfMissing True sourceDirectory
-    let url = imageRawUrl photo
-    req <- parseRequest url
-    resp <- httpBS req
-    let img = getResponseBody resp
-    let imgName = imageId photo ++ takeExtension url
-    let imgPath = sourceDirectory </>  imgName
-    BS.writeFile imgPath img
-    return imgPath
-
+saveImage :: Source -> Image -> IO FilePath
+saveImage source photo = do
+  rootDir <- getRootDir
+  let sd = sourceDir source rootDir
+  createDirectoryIfMissing True sd
+  let url = imageRawUrl photo
+  req <- parseRequest url
+  resp <- httpBS req
+  let img = getResponseBody resp
+  let imgName = imageId photo ++ takeExtension url
+  let imgPath = sd </> imgName
+  BS.writeFile imgPath img
+  return imgPath
 
 setFeh :: Bool -> FilePath -> IO String
 setFeh xinerama fp = readProcess "feh" args ""
   where
-    bgFill = ["--bg-fill", fp] 
-    args = if xinerama
-      then bgFill
-      else bgFill ++ ["--no-xinerama"]   
+    bgFill = ["--bg-fill", fp]
+    args =
+      if xinerama
+        then bgFill
+        else bgFill ++ ["--no-xinerama"]
