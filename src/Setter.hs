@@ -2,9 +2,6 @@
 
 module Setter where
 
--- import Types (Photo (photoUrl, photoId), SourceOptions (W, R))
-
--- import Data.Text (Text)
 import Data.Aeson.Types (parse)
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
@@ -13,8 +10,6 @@ import System.Directory (XdgDirectory (XdgData), createDirectoryIfMissing, getXd
 import System.FilePath
 import System.Process (readProcess)
 import Types (Image (..), Reddit (..), Source (..))
-
--- import Data.List.Split
 
 getRootDir :: IO FilePath
 getRootDir = getXdgDirectory XdgData "yaws"
@@ -30,6 +25,7 @@ sourceDirName :: Source -> FilePath
 sourceDirName a = case a of
   W wo -> "wallhaven"
   R ro -> "reddit"
+  U _ -> "unsplash"
 
 saveImage :: Source -> Image -> IO FilePath
 saveImage source photo = do
@@ -43,7 +39,7 @@ saveImage source photo = do
   let imgName = imageId photo ++ takeExtension url
   let imgPath = sd </> imgName
   BS.writeFile imgPath img
-  return imgPath
+  pure imgPath
 
 setFeh :: Bool -> FilePath -> IO String
 setFeh xinerama fp = readProcess "feh" args ""

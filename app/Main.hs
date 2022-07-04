@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use lambda-case" #-}
 module Main where
 
 import Algorithm (getImage)
@@ -13,37 +16,61 @@ wallhavenParser = W . Wallhaven <$> option str (long "tags" <> short 't' <> meta
 redditParser :: Parser Source
 redditParser = R . Reddit <$> option str (long "subreddit" <> metavar "SUBREDDIT" <> help "Subreddit from which to parse images")
 
-sourceParser :: Parser Source
-sourceParser =
+-- unsplashP :: Parser Source
+unsplashP =
+  U
+    <$> ( UnsplashSettings
+            <$> collectionsP
+            <*> topicsP
+            <*> queryP
+            <*> orientationP
+        )
+  where
+    orientationReadM :: ReadM Orientation
+    orientationReadM =
+      str >>= \s -> case s of
+        "landscape" -> return Landscape
+        "squarish" -> return Squarish
+        "portrait" -> return Portrait
+        _ -> readerError "Accepted orientation types are 'landscape', 'squarish' and 'portrait'."
+    collectionsP = optional (option str (long "collections"))
+    topicsP = optional (option str (long "topics"))
+    queryP = optional (option str (long "query"))
+    orientationP = optional (option orientationReadM (long "orientation"))
+
+sourceP :: Parser Source
+sourceP =
   hsubparser
     ( command "wallhaven" (info wallhavenParser (progDesc "Get wallpaper from wallhaven"))
         <> command "reddit" (info redditParser (progDesc "Get wallpaper from selected subreddit"))
+        <> command "unsplash" (info unsplashP (progDesc "Get wallpaper from unsplash"))
         <> commandGroup "Available sources"
     )
 
 settingsParser =
   Settings
-    <$> dimensionsParser
-    <*> rootDirParser
-    <*> xineramaParser
-    <*> setParser
-    <*> sourceParser
+    <$> dimensionsP
+    <*> rootDirP
+    <*> xineramaP
+    <*> setP
+    <*> sourceP
   where
-    dimensionsParser = optional (option auto (long "dimensions" <> short 'd' <> metavar "WIDTHxHEIGHT"))
-    rootDirParser = optional $ option auto (long "root-directory" <> metavar "$XDG_DATA_DIR/yaws")
-    xineramaParser = flag True False (long "no-xinerama" <> help "Disable xinerama and set wallpaper on all screens")
-    setParser = flag True False (long "no-set" <> help "Don't set wallpaper instead just save it and return path to it to stdout")
+    dimensionsP = optional (option auto (long "dimensions" <> short 'd' <> metavar "WIDTHxHEIGHT"))
+    rootDirP = optional $ option auto (long "root-directory" <> metavar "$XDG_DATA_DIR/yaws")
+    xineramaP = flag True False (long "no-xinerama" <> help "Disable xinerama and set wallpaper on all screens")
+    setP = flag True False (long "no-set" <> help "Don't set wallpaper instead just save it and return path to it to stdout")
 
 main :: IO ()
 main = do
   settings <- execParser opts
   image <- runExceptT $ getImage settings
+  let source = sSource settings
   case image of
     Left ye -> putStrLn $ "Error occured during getting image: " ++ show ye
     Right img ->
       if sSet settings
         then setImage (sXinerama settings) (sSource settings) img
-        else putStrLn $ imageRawUrl img
+        else saveImage source img >>= putStrLn
   where
     opts =
       info
@@ -54,6 +81,5 @@ main = do
         )
     setImage xinerama src img = do
       imagePath <- saveImage src img
-
       setFeh xinerama imagePath
       pure ()

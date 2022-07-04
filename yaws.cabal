@@ -45,4 +45,4 @@ executable yaws
 library yawsLib
     import: common-all
     hs-source-dirs: src
-    exposed-modules: Wallhaven, Settings, Algorithm, Types, Setter, Reddit
+    exposed-modules: Wallhaven, Settings, Algorithm, Types, Setter, Reddit, Unsplash
