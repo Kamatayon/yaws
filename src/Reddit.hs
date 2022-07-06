@@ -4,6 +4,7 @@ module Reddit where
 
 import Data.Aeson
 import qualified Data.Text as T
+import Network (performRequest)
 import Network.HTTP.Client (Request, Response (responseBody), parseRequest_)
 import Network.HTTP.Simple (addRequestHeader, httpJSON)
 import Types
@@ -61,12 +62,11 @@ makeRequest subredditName =
 -- unescapeHTML :: String -> String
 -- unescapeHTML = unpack . replace "&amp" "&" . pack
 
-getImages :: Reddit -> (Int, Int) -> IO [Image]
+getImages :: Reddit -> (Int, Int) -> YawsIO [Image]
 getImages redditOptions (w, h) = do
   let subredditName = redditSubreddit redditOptions
   let request = makeRequest subredditName
-  resp <- httpJSON request
-  let body = responseBody resp :: RedditResponse
+  body <- performRequest request
   let images = collectImages $ redditResponsePosts body
   pure images
   where

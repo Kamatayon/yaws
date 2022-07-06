@@ -2,6 +2,8 @@ module Types where
 
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text
+import Network.HTTP.Client (HttpException)
+import Network.HTTP.Simple
 
 -- class Photo p where
 --     getId :: p -> Text
@@ -51,7 +53,9 @@ data YawsError
   | CannotParseDimensions
   | RootDirDoesNotExist
   | NotImplemented
-  | NoImages
+  | NoImagesMatching
+  | HE HttpException
+  | JE JSONException
   deriving (Show)
 
 type YawsIO = ExceptT YawsError IO

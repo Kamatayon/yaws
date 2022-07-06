@@ -7,6 +7,7 @@ import Data.Aeson
 import Data.ByteString
 import qualified Data.ByteString.Char8 as C
 import GHC.Generics
+import Network (performRequest)
 import Network.HTTP.Client (Request, setQueryString)
 import Network.HTTP.Simple (getResponseBody, httpJSON, setRequestHeader)
 import Types
@@ -68,11 +69,10 @@ makeRequest settings =
 photoToImage :: UnsplashPhoto -> Image
 photoToImage uph = Image {imageId = upId uph, imageRawUrl = upUrl uph, imageFullUrl = upHtmlLink uph}
 
-getImages :: UnsplashSettings -> (Int, Int) -> IO [Image]
+getImages :: UnsplashSettings -> (Int, Int) -> YawsIO [Image]
 getImages settings (w, h) = do
   let req = makeRequest settings
-  resp <- httpJSON req
-  let photos = getResponseBody resp
+  photos <- performRequest req
   let images = photoToImage <$> Prelude.filter predicate photos
   pure images
   where

@@ -7,6 +7,7 @@ import Algorithm (getImage)
 import Control.Monad.Trans.Except (runExceptT)
 import Options.Applicative
 import Setter (saveImage, setFeh)
+import System.Directory.Internal.Prelude (exitFailure)
 import Types
 import qualified Wallhaven as W
 
@@ -33,7 +34,7 @@ unsplashP =
         "squarish" -> return Squarish
         "portrait" -> return Portrait
         _ -> readerError "Accepted orientation types are 'landscape', 'squarish' and 'portrait'."
-    collectionsP = optional (option str (long "collections"))
+    collectionsP = optional $ option str (long "collections")
     topicsP = optional (option str (long "topics"))
     queryP = optional (option str (long "query"))
     orientationP = optional (option orientationReadM (long "orientation"))
@@ -56,22 +57,23 @@ settingsParser =
     <*> sourceP
   where
     dimensionsP = optional (option auto (long "dimensions" <> short 'd' <> metavar "WIDTHxHEIGHT"))
-    rootDirP = optional $ option auto (long "root-directory" <> metavar "$XDG_DATA_DIR/yaws")
+    rootDirP = optional $ option auto (long "root-directory" <> metavar "$XDG_DATA_DIR/yaws" <> help "Directory where to save images. Defaults to $XDG_DATA_DIR/yaws")
     xineramaP = flag True False (long "no-xinerama" <> help "Disable xinerama and set wallpaper on all screens")
-    setP = flag True False (long "no-set" <> help "Don't set wallpaper instead just save it and return path to it to stdout")
+    setP = flag True False (long "no-set" <> help "Don't set wallpaper instead just download it and return path to it to stdout")
 
 main :: IO ()
 main = do
   settings <- execParser opts
-  image <- runExceptT $ getImage settings
+  imgEither <- runExceptT $ getImage settings
+  image <- case imgEither of
+    Left ye -> handleYawsError ye
+    Right img -> pure img
   let source = sSource settings
-  case image of
-    Left ye -> putStrLn $ "Error occured during getting image: " ++ show ye
-    Right img ->
-      if sSet settings
-        then setImage (sXinerama settings) (sSource settings) img
-        else saveImage source img >>= putStrLn
+  if sSet settings
+    then setImage (sXinerama settings) (sSource settings) image
+    else saveImage source image >>= putStrLn
   where
+    handleYawsError ye = putStrLn ("Error occured during getting the image: " ++ show ye) >> exitFailure
     opts =
       info
         (settingsParser <**> helper)
