@@ -51,4 +51,4 @@ yawsMain = do
   maybe (pure ()) infiniteCycle delay
   where
     minuteToMs = 60000000
-    infiniteCycle time = liftIO (threadDelay (time * minuteToMs)) >> setWallpaper
+    infiniteCycle time = forever $ liftIO (threadDelay (time * minuteToMs)) >> setWallpaper
