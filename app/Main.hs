@@ -3,11 +3,16 @@
 {-# HLINT ignore "Use lambda-case" #-}
 module Main where
 
-import Algorithm (getImage)
+import Algorithm (getImage, setWallpaper, yawsMain)
+import Control.Concurrent (threadDelay)
+import Control.Monad
 import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.Trans.Reader (ReaderT (runReaderT), runReader)
 import Options.Applicative
-import Setter (saveImage, setFeh)
+import Setter (saveImage, setFeh, srcToStr)
 import System.Directory.Internal.Prelude (exitFailure)
+import System.Exit (exitSuccess)
+import Text.Regex.TDFA
 import Types
 import qualified Wallhaven as W
 
@@ -54,26 +59,29 @@ settingsParser =
     <*> rootDirP
     <*> xineramaP
     <*> setP
+    <*> delayP
     <*> sourceP
   where
-    dimensionsP = optional (option auto (long "dimensions" <> short 'd' <> metavar "WIDTHxHEIGHT"))
     rootDirP = optional $ option auto (long "root-directory" <> metavar "$XDG_DATA_DIR/yaws" <> help "Directory where to save images. Defaults to $XDG_DATA_DIR/yaws")
     xineramaP = flag True False (long "no-xinerama" <> help "Disable xinerama and set wallpaper on all screens")
     setP = flag True False (long "no-set" <> help "Don't set wallpaper instead just download it and return path to it to stdout")
+    delayP = optional $ option auto (long "delay" <> help "If set to any number it will be a delay ( in minutes ) before each setting otherwise it will download random wallpaper only once")
+
+dimensionsP = optional (option dimensionsReadM (long "dimensions" <> short 'd' <> metavar "WIDTHxHEIGHT"))
+  where
+    regex = "([0-9]+)x([0-9]+)"
+    matchStr :: String -> (String, String, String, [String])
+    matchStr s = s =~ regex
+    parseMatch m = case m of
+      (_, _, _, [w, h]) -> Right (read w, read h)
+      _ -> Left "Dimensions must be in format of WIDTHxHEIGHT"
+    dimensionsReadM = eitherReader $ parseMatch . matchStr
 
 main :: IO ()
 main = do
   settings <- execParser opts
-  imgEither <- runExceptT $ getImage settings
-  image <- case imgEither of
-    Left ye -> handleYawsError ye
-    Right img -> pure img
-  let source = sSource settings
-  if sSet settings
-    then setImage (sXinerama settings) (sSource settings) image
-    else saveImage source image >>= putStrLn
+  runReaderT yawsMain settings
   where
-    handleYawsError ye = putStrLn ("Error occured during getting the image: " ++ show ye) >> exitFailure
     opts =
       info
         (settingsParser <**> helper)
@@ -81,7 +89,3 @@ main = do
             <> progDesc "Download random wallpaper from selected source"
             <> header "yaws - wallpaper downloader"
         )
-    setImage xinerama src img = do
-      imagePath <- saveImage src img
-      setFeh xinerama imagePath
-      pure ()

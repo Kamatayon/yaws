@@ -4,7 +4,6 @@ module Reddit where
 
 import Data.Aeson
 import qualified Data.Text as T
-import Network (performRequest)
 import Network.HTTP.Client (Request, Response (responseBody), parseRequest_)
 import Network.HTTP.Simple (addRequestHeader, httpJSON)
 import Types
@@ -25,7 +24,7 @@ instance FromJSON RedditPost where
     preview <- d .:? "preview"
     case preview of
       Nothing -> pure $ RedditPost [] ""
-      Just p -> RedditPost <$> p .: "images" <*> d .: "url"
+      Just p -> RedditPost <$> p .: "images" <*> d .: "permalink"
 
 -- i <- p .: "images"
 -- RedditPost <$> parseJSON i
@@ -59,14 +58,11 @@ makeRequest subredditName =
       url = parseRequest_ $ "https://reddit.com/r/" ++ subredditName ++ "/hot.json"
    in addRequestHeader headerName headerValue url
 
--- unescapeHTML :: String -> String
--- unescapeHTML = unpack . replace "&amp" "&" . pack
-
 getImages :: Reddit -> (Int, Int) -> YawsIO [Image]
 getImages redditOptions (w, h) = do
   let subredditName = redditSubreddit redditOptions
   let request = makeRequest subredditName
-  body <- performRequest request
+  body <- responseBody <$> httpJSON request
   let images = collectImages $ redditResponsePosts body
   pure images
   where
@@ -74,11 +70,8 @@ getImages redditOptions (w, h) = do
     postToImages :: RedditPost -> [Image]
     postToImages rp =
       let redditImages = redditPostImages rp
-          postUrl = redditPostUrl rp
-          convert ri = Image {imageId = redditImageId ri, imageRawUrl = redditImageUrl ri, imageFullUrl = postUrl}
+          fullUrl = "https://reddit.com" ++ redditPostUrl rp
+          convert ri = Image {imageId = redditImageId ri, imageRawUrl = redditImageUrl ri, imageFullUrl = fullUrl}
        in map convert redditImages
     collectImages :: [RedditPost] -> [Image]
     collectImages posts = concatMap postToImages posts
-
--- convertRedditImageToImage :: RedditImage -> Image
--- convertRedditImageToImage rImg = Image {imageUrl=redditImageUrl rImg, imageId=redditImageId rImg}

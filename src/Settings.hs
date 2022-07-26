@@ -1,74 +1,69 @@
 module Settings where
 
-import Types
-import System.Directory
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
+import Control.Monad.Trans.Reader
+import Data.Bifunctor
+import Data.Maybe (catMaybes)
+import Graphics.X11
+import Graphics.X11.Xinerama
+import System.Directory
 import System.Process
 import Text.Regex.TDFA
-import Data.Maybe (catMaybes)
-import Data.Bifunctor
-
-
+import Types
 
 getRootDir :: Maybe FilePath -> YawsIO FilePath
 getRootDir rootDir = case rootDir of
   Nothing -> liftIO getDefaultRootDir
   Just s -> validateRootDir s
   where
-      getDefaultRootDir = do
-        dir <- getXdgDirectory XdgData "yaws"
-        createDirectoryIfMissing True dir
-        pure dir
-      validateRootDir s = do
-        exists <- liftIO $  doesDirectoryExist s 
-        if exists
-            then pure s
-            else throwE RootDirDoesNotExist
-
-getDefaultDimensions :: Bool -> YawsIO (Int, Int)
-getDefaultDimensions False = do
-    output <- liftIO $ readProcess "xdpyinfo" [] ""
-    let regex = "dimensions:[ ]+([0-9]+)x([0-9]+)"
-    case (output =~ regex :: (String, String, String, [String])) of
-        (_, _, _, [w, h]) -> pure (read w, read h)
-        _ -> throwE XdpyInfoParseError
-
-getDefaultDimensions True = do
-    output <- liftIO $ readProcess "xrandr" [] ""
-    let matches = (output =~ regex) :: [[String]]
-    let monitors = catMaybes $ parseMatch <$> matches
-    getMinimum monitors
-    where
-        regex = "([0-9]+)x([0-9]+)[ ]+[0-9]+.[0-9]+[*]"
-        parseMatch :: [String] -> Maybe (Int, Int)
-        parseMatch [_, w, h] = Just (read w, read h)
-        parseMatch _ = Nothing
-        getMinimum :: [(Int, Int)] -> YawsIO (Int, Int)
-        getMinimum [] = throwE XRandrParseError
-        getMinimum l = pure $ bimap minimum minimum $ unzip l
+    getDefaultRootDir = do
+      dir <- getXdgDirectory XdgData "yaws"
+      createDirectoryIfMissing True dir
+      pure dir
+    validateRootDir = pure
 
 parseDimensions :: String -> Maybe (Int, Int)
 parseDimensions = parseMatch . matchStr
-    where
-        regex = "([0-9]+)x([0-9]+)"
-        matchStr :: String -> (String, String, String, [String])
-        matchStr s = s =~ regex
-        parseMatch m = case m of
-            (_, _, _, [w, h]) -> pure (read w, read h)
-            _ -> Nothing
+  where
+    regex = "([0-9]+)x([0-9]+)"
+    matchStr :: String -> (String, String, String, [String])
+    matchStr s = s =~ regex
+    parseMatch m = case m of
+      (_, _, _, [w, h]) -> pure (read w, read h)
+      _ -> Nothing
 
-getDimensions :: Maybe String -> Bool -> YawsIO (Int, Int)
-getDimensions dimensionsStr xinerama = case dimensionsStr of
-  Nothing -> getDefaultDimensions xinerama
-  Just s -> case parseDimensions s of
-    Nothing -> throwE CannotParseDimensions
-    Just x1 -> pure x1
-            
+getDimensions :: YawsIO (Int, Int)
+getDimensions = do
+  mbStr <- asks sDimensions
+  case mbStr of
+    Nothing -> asks sXinerama >>= liftIO . getDefaultDimensions
+    Just x -> pure x
 
-
-    
-
-
-
-    
+getDefaultDimensions :: Bool -> IO (Int, Int)
+getDefaultDimensions xinerama = do
+  ds <- openDisplay ""
+  screenInfo <- getScreenInfo ds
+  let dimensions = (if xinerama then maxDimensions else dimensionsWithoutXinerama) screenInfo
+  pure dimensions
+  where
+    recToDims rect = Dimensions {dX = fromIntegral $ rect_width rect, dY = fromIntegral $ rect_height rect}
+    maxAcc :: Rectangle -> Dimensions -> Dimensions
+    maxAcc rect dim =
+      let screenX = fromIntegral (rect_width rect) + fromIntegral (rect_x rect)
+          screenY = fromIntegral (rect_height rect) + fromIntegral (rect_y rect)
+          x = max screenX (dX dim)
+          y = max screenY (dY dim)
+       in Dimensions x y
+    -- gets minimum width/height from list of screens
+    maxDimensions :: [Rectangle] -> (Int, Int)
+    maxDimensions rects =
+      let rectToTuple :: Rectangle -> (Int, Int)
+          rectToTuple r = (fromIntegral $ rect_width r, fromIntegral $ rect_height r)
+       in bimap maximum maximum $ unzip (rectToTuple <$> rects)
+    dimensionsWithoutXinerama rects =
+      let rectX r = fromIntegral (rect_width r) + fromIntegral (rect_x r)
+          rectY r = fromIntegral (rect_height r) + fromIntegral (rect_y r)
+          rectToTuple r = (rectX r, rectY r)
+       in bimap maximum maximum $ unzip (rectToTuple <$> rects)

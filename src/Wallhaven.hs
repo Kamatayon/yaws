@@ -15,8 +15,7 @@ import qualified Data.ByteString.UTF8 as BSU
 import Data.List.NonEmpty (fromList)
 import qualified Data.Text as T
 import Data.Text.Encoding as E
-import Network (performRequest)
-import Network.HTTP.Client (setQueryString)
+import Network.HTTP.Client (Response (responseBody), setQueryString)
 import Network.HTTP.Simple
 import Types
 
@@ -50,5 +49,5 @@ makeRequest options (w, h) = setQueryString query apiUrl
 getPhotos :: Wallhaven -> (Int, Int) -> YawsIO [Image]
 getPhotos options (w, h) = do
   let request = makeRequest options (w, h)
-  body <- performRequest request
+  body <- responseBody <$> httpJSON request
   pure $ images body
