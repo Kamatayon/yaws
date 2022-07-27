@@ -5,10 +5,11 @@
 
 module Wallhaven where
 
-import Data.Aeson
-import Data.Aeson.KeyMap
 -- import Data.Aeson.Li
 
+import Control.Monad.IO.Class (MonadIO)
+import Data.Aeson
+import Data.Aeson.KeyMap
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as Bytechar
 import qualified Data.ByteString.UTF8 as BSU
@@ -46,7 +47,7 @@ makeRequest options (w, h) = setQueryString query apiUrl
         ("q", Just tags)
       ]
 
-getPhotos :: Wallhaven -> (Int, Int) -> YawsIO [Image]
+getPhotos :: MonadIO m => Wallhaven -> (Int, Int) -> m [Image]
 getPhotos options (w, h) = do
   let request = makeRequest options (w, h)
   body <- responseBody <$> httpJSON request

@@ -1,7 +1,9 @@
 module Types where
 
+import Control.Monad.Catch
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Reader (Reader, ReaderT)
+import Data.Data (Typeable)
 import Data.Text
 import Network.HTTP.Client (HttpException)
 import Network.HTTP.Simple
@@ -49,26 +51,8 @@ data Settings = Settings
   }
   deriving (Show)
 
-data YawsError
-  = RootDirDoesNotExist
-  | NoImagesMatching
-  deriving (Show)
-
--- type YawsIO = ExceptT YawsError IO
-
--- newtype Yaws a = Yaws (ReaderT Settings (ExceptT YawsError IO ) a) deriving (MonadError YawsError)
-
 type YawsIO = ReaderT Settings IO
 
--- type Yaws = ReaderT Settings (ExceptT YawsError IO)
+data YawsException = RootDirDoesNotExist | NoImagesMatching | UnsplashErrors [String] deriving (Show, Typeable)
 
-data Dimensions = Dimensions
-  { dX :: Int,
-    dY :: Int
-  }
-
-instance Semigroup Dimensions where
-  (Dimensions x1 y1) <> (Dimensions x2 y2) = Dimensions (x1 + x2) (y1 + y2)
-
-instance Monoid Dimensions where
-  mempty = Dimensions 0 0
+instance Exception YawsException

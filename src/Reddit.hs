@@ -2,6 +2,8 @@
 
 module Reddit where
 
+import Control.Monad.Catch
+import Control.Monad.IO.Class
 import Data.Aeson
 import qualified Data.Text as T
 import Network.HTTP.Client (Request, Response (responseBody), parseRequest_)
@@ -26,9 +28,6 @@ instance FromJSON RedditPost where
       Nothing -> pure $ RedditPost [] ""
       Just p -> RedditPost <$> p .: "images" <*> d .: "permalink"
 
--- i <- p .: "images"
--- RedditPost <$> parseJSON i
-
 data RedditImage = RedditImage
   { redditImageX :: Int,
     redditImageY :: Int,
@@ -48,9 +47,6 @@ instance FromJSON RedditImage where
     where
       unescapeHTML = T.replace "&amp;" "&"
 
--- instance FromJSON RedditImage where
---     fromJSON val = withObject "RedditImage"
-
 makeRequest :: String -> Request
 makeRequest subredditName =
   let headerName = "User-Agent"
@@ -58,7 +54,7 @@ makeRequest subredditName =
       url = parseRequest_ $ "https://reddit.com/r/" ++ subredditName ++ "/hot.json"
    in addRequestHeader headerName headerValue url
 
-getImages :: Reddit -> (Int, Int) -> YawsIO [Image]
+getImages :: (MonadIO m) => Reddit -> (Int, Int) -> m [Image]
 getImages redditOptions (w, h) = do
   let subredditName = redditSubreddit redditOptions
   let request = makeRequest subredditName

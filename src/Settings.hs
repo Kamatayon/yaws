@@ -48,14 +48,6 @@ getDefaultDimensions xinerama = do
   let dimensions = (if xinerama then maxDimensions else dimensionsWithoutXinerama) screenInfo
   pure dimensions
   where
-    recToDims rect = Dimensions {dX = fromIntegral $ rect_width rect, dY = fromIntegral $ rect_height rect}
-    maxAcc :: Rectangle -> Dimensions -> Dimensions
-    maxAcc rect dim =
-      let screenX = fromIntegral (rect_width rect) + fromIntegral (rect_x rect)
-          screenY = fromIntegral (rect_height rect) + fromIntegral (rect_y rect)
-          x = max screenX (dX dim)
-          y = max screenY (dY dim)
-       in Dimensions x y
     -- gets minimum width/height from list of screens
     maxDimensions :: [Rectangle] -> (Int, Int)
     maxDimensions rects =

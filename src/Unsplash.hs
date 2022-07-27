@@ -3,9 +3,14 @@
 
 module Unsplash where
 
+import Control.Monad
+import Control.Monad.Catch
+import Control.Monad.IO.Class
 import Data.Aeson
-import Data.ByteString
+import qualified Data.Aeson.KeyMap as HML
+import Data.ByteString hiding (filter)
 import qualified Data.ByteString.Char8 as C
+import Data.Functor
 import GHC.Generics
 import Network.HTTP.Client (Request, setQueryString)
 import Network.HTTP.Conduit
@@ -32,10 +37,20 @@ instance FromJSON UnsplashPhoto where
     htmlLink <- links .: "html"
     pure $ UnsplashPhoto {upWidth = width, upHeight = height, upUrl = url, upId = id, upHtmlLink = htmlLink}
 
-newtype UnsplashResponse = UnsplashResponse
-  { urPhotos :: [UnsplashPhoto]
-  }
+-- instance FromJSON UnsplashErrorResponse where
+--   parseJSON = withObject "UnsplashErrorResponse" $ \obj -> obj .: "errors" <&> UnsplashErrorResponse
+
+data UnsplashResponse
+  = UnsplashResponse
+      { urPhotos :: [UnsplashPhoto]
+      }
+  | UnsplashErrorResponse [String]
   deriving (Generic)
+
+instance FromJSON UnsplashResponse where
+  parseJSON a@(Array arr) = UnsplashResponse <$> parseJSON a
+  parseJSON (Object obj) = UnsplashErrorResponse <$> obj .: "errors"
+  parseJSON _ = fail "Unable to parse Unsplash response"
 
 orientationToString :: Orientation -> String
 orientationToString Landscape = "landscape"
@@ -69,11 +84,20 @@ makeRequest settings =
 photoToImage :: UnsplashPhoto -> Image
 photoToImage uph = Image {imageId = upId uph, imageRawUrl = upUrl uph, imageFullUrl = upHtmlLink uph}
 
-getImages :: UnsplashSettings -> (Int, Int) -> YawsIO [Image]
+handleUnsplashError :: (MonadThrow m) => [String] -> m a
+handleUnsplashError strs = throwM $ case strs of
+  ["No photos found."] -> NoImagesMatching
+  l -> UnsplashErrors l
+
+getImages :: (MonadIO m, MonadThrow m) => UnsplashSettings -> (Int, Int) -> m [Image]
 getImages settings (w, h) = do
   let req = makeRequest settings
-  photos <- responseBody <$> httpJSON req
-  let images = photoToImage <$> Prelude.filter predicate photos
-  pure images
+  response <- responseBody <$> httpJSON req
+  case response of
+    UnsplashErrorResponse errors -> handleUnsplashError errors
+    UnsplashResponse photos -> pure $ photoToImage <$> filter predicate photos
   where
+    -- let images = photoToImage <$> Prelude.filter predicate photos
+    -- pure images
+
     predicate uPh = upWidth uPh >= w && upHeight uPh >= h

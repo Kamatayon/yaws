@@ -2,6 +2,7 @@ module Algorithm where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad
+import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Reader
@@ -10,7 +11,7 @@ import Setter (saveImage, setFeh, srcToStr)
 import Settings (getDimensions)
 import System.Exit
 import System.Random (initStdGen, uniformR)
-import Types (Image (..), Settings (..), Source (..), YawsError (NoImagesMatching), YawsIO)
+import Types (Image (..), Settings (..), Source (..), YawsException (NoImagesMatching), YawsIO)
 import qualified Unsplash as U
 import qualified Wallhaven as WH
 
@@ -24,7 +25,7 @@ getImage = do
     getImages (W wall) dimensions = WH.getPhotos wall dimensions
     getImages (R reddit) dimensions = R.getImages reddit dimensions
     getImages (U unsplash) dimensions = U.getImages unsplash dimensions
-    selectRandomImage [] = error "No images matching"
+    selectRandomImage [] = throwM NoImagesMatching
     selectRandomImage imgs = do
       stdGen <- initStdGen
       let (i, _) = uniformR (0, length imgs - 1) stdGen
