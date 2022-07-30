@@ -1,11 +1,13 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Algorithm where
 
 import Control.Concurrent (threadDelay)
 import Control.Monad
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.IO.Class
+import Control.Monad.Reader.Class
 import Control.Monad.Trans.Except
-import Control.Monad.Trans.Reader
 import qualified Reddit as R
 import Setter (saveImage, setFeh, srcToStr)
 import Settings (getDimensions)
@@ -15,16 +17,18 @@ import Types (Image (..), Settings (..), Source (..), YawsException (NoImagesMat
 import qualified Unsplash as U
 import qualified Wallhaven as WH
 
-getImage :: YawsIO Image
-getImage = do
-  d <- getDimensions
+getImages :: (MonadIO m, MonadReader Settings m, MonadThrow m) => m [Image]
+getImages = do
+  dimensions <- getDimensions
   source <- asks sSource
-  images <- getImages source d
-  selectRandomImage images
+  case source of
+    W wall -> WH.getPhotos wall dimensions
+    R reddit -> R.getImages reddit dimensions
+    U unsplash -> U.getImages unsplash dimensions
+
+getImage :: (MonadIO m, MonadThrow m, MonadReader Settings m) => m Image
+getImage = getImages >>= selectRandomImage
   where
-    getImages (W wall) dimensions = WH.getPhotos wall dimensions
-    getImages (R reddit) dimensions = R.getImages reddit dimensions
-    getImages (U unsplash) dimensions = U.getImages unsplash dimensions
     selectRandomImage [] = throwM NoImagesMatching
     selectRandomImage imgs = do
       stdGen <- initStdGen
@@ -35,15 +39,22 @@ setWallpaper :: YawsIO ()
 setWallpaper = do
   image <- getImage
   source <- asks sSource
-  liftIO $ urlMsg image source
+  msg $ "Selected image from " ++ srcToStr source ++ ". Url: " ++ imageFullUrl image
   imagePath <- saveImage image
+  msg $ "Saved image to " ++ imagePath
   xinerama <- asks sXinerama
-  liftIO $ setFeh xinerama imagePath
-
+  set <- asks sSet
+  if set
+    then liftIO $ void $ setFeh xinerama imagePath
+    else liftIO $ putStrLn imagePath
   pure ()
   where
     urlMsg img src = putStrLn $ "Selected image from " ++ srcToStr src ++ ". Url: " ++ imageFullUrl img
     handleYawsError ye = putStrLn ("Error occured during getting the image: " ++ show ye) >> exitFailure
+
+-- | only prints message to stdout if sSet set to True.
+msg :: (MonadIO m, (MonadReader Settings m)) => String -> m ()
+msg str = asks sSet >>= \b -> when b $ liftIO $ putStrLn str
 
 yawsMain :: YawsIO ()
 yawsMain = do

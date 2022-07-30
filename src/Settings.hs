@@ -1,9 +1,11 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Settings where
 
 import Control.Monad.IO.Class
+import Control.Monad.Reader.Class
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Except
-import Control.Monad.Trans.Reader
 import Data.Bifunctor
 import Data.Maybe (catMaybes)
 import Graphics.X11
@@ -34,7 +36,7 @@ parseDimensions = parseMatch . matchStr
       (_, _, _, [w, h]) -> pure (read w, read h)
       _ -> Nothing
 
-getDimensions :: YawsIO (Int, Int)
+getDimensions :: (MonadIO m, MonadReader Settings m) => m (Int, Int)
 getDimensions = do
   mbStr <- asks sDimensions
   case mbStr of
