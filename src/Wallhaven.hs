@@ -11,7 +11,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.Aeson
 import Data.Aeson.KeyMap
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Char8 as Bytechar
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.UTF8 as BSU
 import Data.List.NonEmpty (fromList)
 import qualified Data.Text as T
@@ -39,8 +39,8 @@ makeRequest :: Wallhaven -> (Int, Int) -> Request
 makeRequest options (w, h) = setQueryString query apiUrl
   where
     apiUrl = "https://wallhaven.cc/api/v1/search"
-    atLeast = BSU.fromString $ concat [show w, "x", show h]
-    tags = BSU.fromString $ wallhavenTags options
+    atLeast = BSC.pack $ concat [show w, "x", show h]
+    tags = BSC.pack $ wallhavenTags options
     query =
       [ ("atleast", Just atLeast),
         ("sorting", Just "random"),
