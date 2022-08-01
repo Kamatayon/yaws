@@ -17,13 +17,24 @@ import qualified Data.Text as T
 import Network.HTTP.Client
 import Network.HTTP.Simple (getResponseBody, httpBS, parseRequest)
 import Network.HTTP.Types
-import System.Directory (XdgDirectory (XdgData), createDirectoryIfMissing, getXdgDirectory)
+import System.Directory (XdgDirectory (XdgData), createDirectoryIfMissing, doesDirectoryExist, getXdgDirectory)
 import System.FilePath
 import System.Process (readProcess)
-import Types (Image (..), Reddit (..), Settings (..), Source (..), YawsException (UnknownContentType), YawsIO)
+import Types (Image (..), Reddit (..), Settings (..), Source (..), YawsException (RootDirDoesNotExist, UnknownContentType), YawsIO)
 
-getRootDir :: IO FilePath
-getRootDir = getXdgDirectory XdgData "yaws"
+-- | validates if provided root directory exists, if not throws exception otherwsie returns provided/default directory
+getDir :: (MonadIO m, MonadThrow m) => Maybe FilePath -> m FilePath
+getDir mb = liftIO $ do
+  p <- case mb of
+    Just _p -> pure _p
+    Nothing -> do
+      xd <- getXdgDirectory XdgData "yaws"
+      createDirectoryIfMissing False xd
+      pure xd
+  exists <- doesDirectoryExist p
+  if exists
+    then pure p
+    else throwM $ RootDirDoesNotExist p
 
 sourceDir :: Source -> FilePath -> FilePath
 sourceDir src rootPath =
@@ -49,11 +60,10 @@ getImageFormat resp =
       parseFormat = BSC.stripPrefix "image/"
    in mbHeader >>= parseFormat . snd
 
-saveImage :: Image -> YawsIO FilePath
-saveImage image = do
-  rootDir <- liftIO getRootDir
+saveImage :: Image -> FilePath -> YawsIO FilePath
+saveImage image dirPath = do
   source <- asks sSource
-  let sd = sourceDir source rootDir
+  let sd = sourceDir source dirPath
   liftIO $ createDirectoryIfMissing True sd
   let url = imageRawUrl image
   req <- parseRequest url

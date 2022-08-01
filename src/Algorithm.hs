@@ -9,7 +9,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Reader.Class
 import Control.Monad.Trans.Except
 import qualified Reddit as R
-import Setter (saveImage, setFeh, srcToStr)
+import Setter (getDir, saveImage, setFeh, srcToStr)
 import Settings (getDimensions)
 import System.Exit
 import System.Random (initStdGen, uniformR)
@@ -37,10 +37,12 @@ getImage = getImages >>= selectRandomImage
 
 setWallpaper :: YawsIO ()
 setWallpaper = do
+  -- checking if directory exists before making any requests
+  dirPath <- asks sRootDir >>= getDir
   image <- getImage
   source <- asks sSource
   msg $ "Selected image from " ++ srcToStr source ++ ". Url: " ++ imageFullUrl image
-  imagePath <- saveImage image
+  imagePath <- saveImage image dirPath
   msg $ "Saved image to " ++ imagePath
   xinerama <- asks sXinerama
   set <- asks sSet

@@ -53,6 +53,6 @@ data Settings = Settings
 
 type YawsIO = ReaderT Settings IO
 
-data YawsException = RootDirDoesNotExist | NoImagesMatching | UnsplashErrors [String] | UnknownContentType deriving (Show, Typeable)
+data YawsException = RootDirDoesNotExist FilePath | NoImagesMatching | UnsplashErrors [String] | UnknownContentType deriving (Show, Typeable)
 
 instance Exception YawsException
